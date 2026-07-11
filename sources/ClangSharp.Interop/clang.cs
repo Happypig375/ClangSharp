@@ -135,14 +135,22 @@ public static unsafe partial class @clang
             }
         }
 
-        var extension = ".so";
-
-        if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS() || OperatingSystem.IsTvOS())
+        // On iOS/tvOS/Mac Catalyst, dynamic libraries are distributed as Apple frameworks
+        // (Foo.framework/Foo) rather than raw .dylib files. Even though we don't build for
+        // these platforms yet, we can still construct the expected path to native library here.
+        var isAppleFramework = OperatingSystem.IsIOS() || OperatingSystem.IsTvOS() || OperatingSystem.IsMacCatalyst();
+        if (isAppleFramework)
         {
-            extension = ".dylib";
+            libraryPath = Path.Combine(applicationDirectory, $"{libraryName}.framework", libraryName);
         }
-
-        libraryPath = Path.Combine(applicationDirectory, $"{libraryName}{extension}");
+        else if (OperatingSystem.IsMacOS())
+        {
+            libraryPath = Path.Combine(applicationDirectory, $"{libraryName}.dylib");
+        }
+        else
+        {
+            libraryPath = Path.Combine(applicationDirectory, $"{libraryName}.so");
+        }
 
         if (NativeLibrary.TryLoad(libraryPath, assembly, searchPath, out nativeLibrary))
         {
@@ -151,7 +159,18 @@ public static unsafe partial class @clang
 
         if (prefixedLibraryName.Length != 0)
         {
-            libraryPath = Path.Combine(applicationDirectory, $"{prefixedLibraryName}{extension}");
+            if (isAppleFramework)
+            {
+                libraryPath = Path.Combine(applicationDirectory, $"{prefixedLibraryName}.framework", prefixedLibraryName);
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                libraryPath = Path.Combine(applicationDirectory, $"{prefixedLibraryName}.dylib");
+            }
+            else
+            {
+                libraryPath = Path.Combine(applicationDirectory, $"{prefixedLibraryName}.so");
+            }
 
             if (NativeLibrary.TryLoad(libraryPath, assembly, searchPath, out nativeLibrary))
             {
